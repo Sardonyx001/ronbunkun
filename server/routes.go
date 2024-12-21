@@ -1,8 +1,6 @@
 package server
 
 import (
-	"bytes"
-	"fmt"
 	"net/http"
 
 	"log"
@@ -27,9 +25,11 @@ func ConfigureRoutes(server *Server) {
 }
 
 type Article struct {
-	ID    string `json:"id"`
-	Title string `json:"title"`
-	Url   string `json:"url"`
+	ID         string   `json:"id"`
+	Title      string   `json:"title"`
+	Published  string   `json:"published"`
+	Pdfurl     string   `json:"pdfurl"`
+	Categories []string `json:"categories"`
 }
 
 func generate(c echo.Context) error {
@@ -37,32 +37,36 @@ func generate(c echo.Context) error {
 	ctx := c.Request().Context()
 	resultChan, cancel, err := arxiv.Search(ctx, &arxiv.Query{
 		Terms:         "deep learning",
-		MaxPageNumber: 5,
+		MaxPageNumber: 1,
 	})
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	var responseBuf bytes.Buffer
-
 	var articles []Article
 
 	for resultPage := range resultChan {
 		if err := resultPage.Err; err != nil {
-			fmt.Fprintf(&responseBuf, "#%d err: %v", resultPage.PageNumber, err)
 			continue
 		}
 
-		fmt.Fprintf(&responseBuf, "#%d\n", resultPage.PageNumber)
 		feed := resultPage.Feed
-		fmt.Fprintf(&responseBuf, "\tTitle: %s\n\tID: %s\n\tAuthor: %#v\n\tUpdated: %#v\n", feed.Title, feed.ID, feed.Author, feed.Updated)
 
-		for i, entry := range feed.Entry {
-			fmt.Fprintf(&responseBuf, "\n\t\tEntry: #%d Title: %s ID: %s\n\t\tSummary: %s\n\t\tContent: %#v\n\t\tUpdated: %#v\n\t\tLinks: %#v\n",
-				i, entry.Title, entry.ID, entry.Summary.Body, entry.Content, entry.Updated, entry.Link,
-			)
+		for _, entry := range feed.Entry {
+			categories := []string{}
+			for _, category := range entry.Category {
+				categories = append(categories, string(category.Term))
+			}
+
+			articles = append(articles, Article{
+				ID:         entry.ID,
+				Title:      entry.Title,
+				Published:  string(entry.Updated),
+				Pdfurl:     entry.Link[1].Href,
+				Categories: categories,
+			})
 		}
-		if resultPage.PageNumber >= 2 {
+		if resultPage.PageNumber >= 1 {
 			cancel()
 		}
 	}
