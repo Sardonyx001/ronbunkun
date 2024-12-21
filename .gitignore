@@ -62,3 +62,4 @@ Temporary Items
 go.work
 
 # End of https://www.toptal.com/developers/gitignore/api/go
+.env
