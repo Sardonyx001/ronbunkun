@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"net/http"
 
 	"log"
@@ -10,6 +12,7 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/marvin-hansen/arxiv/v1"
 
+	"github.com/samber/lo"
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/ollama"
 )
@@ -29,6 +32,11 @@ func ConfigureRoutes(server *Server) {
 	api.GET("/generate", generate)
 }
 
+func healthcheck(c echo.Context) error {
+	log.Print("Healthcheck request received")
+	return c.JSON(http.StatusOK, map[string]string{"status": "RUNNING"})
+}
+
 type Article struct {
 	ID         string   `json:"id"`
 	Title      string   `json:"title"`
@@ -38,6 +46,8 @@ type Article struct {
 }
 
 func generate(c echo.Context) error {
+	log := c.Logger()
+
 	log.Print("Generate request received")
 	ctx := c.Request().Context()
 	resultChan, cancel, err := arxiv.Search(ctx, &arxiv.Query{
@@ -58,10 +68,10 @@ func generate(c echo.Context) error {
 		feed := resultPage.Feed
 
 		for _, entry := range feed.Entry {
-			categories := []string{}
-			for _, category := range entry.Category {
-				categories = append(categories, string(category.Term))
-			}
+
+			categories := lo.Map(entry.Category, func(cat *arxiv.Class, idx int) string {
+				return string(cat.Term)
+			})
 
 			articles = append(articles, Article{
 				ID:         entry.ID,
@@ -75,12 +85,41 @@ func generate(c echo.Context) error {
 			cancel()
 		}
 	}
+
+	urls := lo.Map(articles, func(article Article, _ int) string {
+		return article.Pdfurl
+	})
+
+	pdfs, err := loadPDFs(urls)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	_ = pdfs
+
 	return c.JSON(http.StatusOK, articles)
 }
 
-func healthcheck(c echo.Context) error {
-	log.Print("Healthcheck request received")
-	return c.JSON(http.StatusOK, map[string]string{"status": "RUNNING"})
+func loadPDFs(urls []string) (map[string][]byte, error) {
+	pdfs := make(map[string][]byte)
+	for _, url := range urls {
+		res, err := http.Get(url)
+		if err != nil {
+			return nil, err
+		}
+		defer res.Body.Close()
+
+		if res.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("failed to download file: %s", url)
+		}
+
+		content, err := io.ReadAll(res.Body)
+		if err != nil {
+			return nil, err
+		}
+		pdfs[url] = content
+		log.Printf("Loaded PDF from %s", url)
+	}
+	return pdfs, nil
 }
 
 type LLMRequest struct {
