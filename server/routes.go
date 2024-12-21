@@ -10,6 +10,10 @@ import (
 func ConfigureRoutes(server *Server) {
 	server.Echo.Use(middleware.Recover())
 	server.Echo.Pre(middleware.RemoveTrailingSlash())
+
+	api := server.Echo.Group("/api")
+
+	api.GET("/", todo)
 }
 
 func todo(c echo.Context) error {
