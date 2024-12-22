@@ -5,30 +5,64 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableFooter,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+
+type Article = {
+  id: string,
+  title: string,
+  published: string,
+  pdfurl: string,
+  categories: string[],
+  summary: string
+}
 
 export default function HomePage() {
   const [maxPapers, setMaxPaperCount] = useState('');
   const [keywords, setKeywords] = useState('');
-  const [result, setResult] = useState('');
+  const [result, setResult] = useState <Article[]>();
+  interface GenerateData {
+    keywords: string[];
+    maxPapers: number;
+  }
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    //const keywordArray = keywords.split(/\s+/); 
+    const keywordArray = keywords.split(/\s+/); 
 
-    console.log(JSON.stringify({ maxPapers, keywords })) 
+    //console.log(JSON.stringify({ maxPapers, keywords })) 
+
+    const genData : GenerateData = {
+        keywords: keywordArray,
+        maxPapers: parseInt(maxPapers)
+    }
+
+    console.log(JSON.stringify(genData)) 
 
     try {
-      const response = await fetch('http://localhost:3001/api/generate', { 
+      const response = await fetch('http://127.0.0.1:3001/api/generate', { 
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ keywords, maxPapers }) 
+        //mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json'
+        //,'Access-Control-Allow-Origin': '*'
+      },
+        body: JSON.stringify(genData) 
       });
 
       const data = await response.json();
       setResult(data.result); 
+      console.log(data)
     } catch (error) {
-      setResult('An error occurred.'); 
+      //setResult(data.error); 
       console.error(error);
     }
   };
@@ -59,12 +93,35 @@ export default function HomePage() {
         <Button type="submit">Submit</Button>
       </form>
 
-      {result && (
-        <div className="mt-4">
-          <h2>Result:</h2>
-          <p>{result}</p> 
-        </div>
-      )}
+      {result && 
+        (<Table>
+          <TableCaption>A list of your recent invoices.</TableCaption>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[100px]">Invoice</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Method</TableHead>
+              <TableHead className="text-right">Amount</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {result.map((item) => (
+              <TableRow key={item.id}>
+                <TableCell className="font-medium">{item.pdfurl}</TableCell>
+                <TableCell>{item.title}</TableCell>
+                <TableCell>{item.published}</TableCell>
+                <TableCell className="">{item.summary}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+          <TableFooter>
+            <TableRow>
+              <TableCell colSpan={3}>Total</TableCell>
+              <TableCell className="text-right">$2,500.00</TableCell>
+            </TableRow>
+          </TableFooter>
+        </Table>)
+        }
     </main>
   );
 }

@@ -22,6 +22,7 @@ import (
 
 func ConfigureRoutes(server *Server) {
 	server.Echo.Use(middleware.Recover())
+	server.Echo.Use(middleware.CORS())
 	server.Echo.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
 		Format: "[${time_rfc3339}] ${status} ${method} ${path} (${remote_ip}) ${latency_human}\n",
 		Output: server.Echo.Logger.Output(),
@@ -46,6 +47,7 @@ type Article struct {
 	Published  string   `json:"published"`
 	Pdfurl     string   `json:"pdfurl"`
 	Categories []string `json:"categories"`
+	Summary    string   `json:"summary"`
 }
 
 type GenerateData struct {
@@ -59,6 +61,7 @@ func generate(c echo.Context) error {
 	log.Print("Generate request received")
 	data := new(GenerateData)
 	if err := c.Bind(data); err != nil {
+		log.Print(err.Error())
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 	}
 
@@ -101,6 +104,7 @@ func generate(c echo.Context) error {
 				Published:  string(entry.Updated),
 				Pdfurl:     entry.Link[1].Href,
 				Categories: categories,
+				Summary:    entry.Summary.Body,
 			})
 
 			if i >= data.MaxPapers-1 {
@@ -134,6 +138,11 @@ func loadPDFs(urls []string) (map[string][]byte, error) {
 			return nil, err
 		}
 		defer res.Body.Close()
+
+		if res.StatusCode == http.StatusNotFound {
+			log.Print("did not find : " + url)
+			continue
+		}
 
 		if res.StatusCode != http.StatusOK {
 			return nil, fmt.Errorf("failed to download file: %s", url)
