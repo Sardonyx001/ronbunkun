@@ -1,0 +1,26 @@
+services:
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - 11434:11434
+    volumes:
+      - ~/ollama:/root/.ollama
+    networks:
+      - net
+
+  app:
+    build: .
+    ports:
+      - "3001:3001"
+    env_file:
+      - .env
+    command: ["./main"]
+    environment:
+      - OLLAMA_API_BASE_URL=http://ollama:11434
+      - MODEL=schroneko/gemma-2-2b-jpn-it
+    networks:
+      - net
+
+networks:
+  net:

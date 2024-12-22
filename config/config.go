@@ -1,20 +1,16 @@
 package config
 
-import (
-	"log"
-
-	"github.com/joho/godotenv"
-)
-
 type Config struct {
 	HTTP HTTPConfig
 }
 
 func NewConfig() *Config {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
+	/*
+		err := godotenv.Load()
+		if err != nil {
+			log.Fatalf("Error loading .env file %v", err)
+		}
+	*/
 
 	return &Config{
 		HTTP: LoadHTTPConfig(),
